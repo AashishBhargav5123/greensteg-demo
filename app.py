@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import io
 
 # ===============================
-# TEXT ↔ BINARY CONVERSION
+# TEXT ↔ BIT CONVERSION
 # ===============================
 
 def text_to_bits(text):
@@ -41,10 +41,10 @@ def compute_exg(img):
 
 
 # ===============================
-# VEGETATION VIOLATION
+# VEGETATION VIOLATION RATE
 # ===============================
 
-def vegetation_violation(exg1, exg2, tol=5):
+def vegetation_violation(exg1, exg2, tol=2):
 
     diff = np.abs(exg1 - exg2)
 
@@ -85,27 +85,27 @@ def embed_text(img, message):
 
     mask = green_mask(img)
 
-    h, w, c = img.shape
+    coords = np.argwhere(mask)
 
-    bit_idx = 0
+    capacity = len(coords)
 
-    for y in range(h):
-        for x in range(w):
+    if len(full_bits) > capacity:
 
-            if mask[y, x]:
+        raise ValueError(
+            "Message too large for this image."
+        )
 
-                if bit_idx < len(full_bits):
+    for i in range(len(full_bits)):
 
-                    # Embed into RED channel
-                    pixel = img[y, x, 0]
+        y, x = coords[i]
 
-                    pixel = (
-                        pixel & 254
-                    ) | int(full_bits[bit_idx])
+        pixel = img[y, x, 0]
 
-                    img[y, x, 0] = pixel
+        pixel = (
+            pixel & 254
+        ) | int(full_bits[i])
 
-                    bit_idx += 1
+        img[y, x, 0] = pixel
 
     return img
 
@@ -116,22 +116,28 @@ def embed_text(img, message):
 
 def extract_text(img):
 
-    h, w, c = img.shape
+    mask = green_mask(img)
+
+    coords = np.argwhere(mask)
 
     bits = []
 
-    for y in range(h):
-        for x in range(w):
+    for y, x in coords:
 
-            pixel = img[y, x, 0]
+        pixel = img[y, x, 0]
 
-            bits.append(str(pixel & 1))
+        bits.append(str(pixel & 1))
 
     bits = ''.join(bits)
 
+    # Read message length
+
     length_bits = bits[:32]
 
-    message_length = int(length_bits, 2)
+    message_length = int(
+        length_bits,
+        2
+    )
 
     message_bits = bits[
         32 : 32 + message_length
@@ -141,7 +147,7 @@ def extract_text(img):
 
 
 # ===============================
-# STREAMLIT UI
+# STREAMLIT PAGE
 # ===============================
 
 st.set_page_config(
@@ -180,94 +186,94 @@ if uploaded_image and message:
 
     img = np.array(img)
 
-    # Compute vegetation BEFORE
+    try:
 
-    exg_original = compute_exg(img)
+        # Vegetation BEFORE
 
-    # Embed message
+        exg_original = compute_exg(img)
 
-    stego_img = embed_text(
-        img.copy(),
-        message
-    )
+        # Embed
 
-    # Compute vegetation AFTER
+        stego_img = embed_text(
+            img.copy(),
+            message
+        )
 
-    exg_stego = compute_exg(stego_img)
+        # Vegetation AFTER
 
-    # Compute violation
+        exg_stego = compute_exg(stego_img)
 
-    violation_rate, diff_map = vegetation_violation(
-        exg_original,
-        exg_stego
-    )
+        # Violation
 
-    st.success("Message Embedded Successfully!")
+        violation_rate, diff_map = vegetation_violation(
+            exg_original,
+            exg_stego
+        )
 
-    st.write(
-        f"Vegetation Violation Rate: {violation_rate:.4f}%"
-    )
+        st.success(
+            "Message Embedded Successfully!"
+        )
 
-    # ===============================
-    # VISUALIZATION
-    # ===============================
+        st.write(
+            f"Vegetation Violation Rate: {violation_rate:.4f}%"
+        )
 
-    fig, ax = plt.subplots(
-        1,
-        4,
-        figsize=(16,4)
-    )
+        # ===============================
+        # VISUALIZATION
+        # ===============================
 
-    # Original
-    ax[0].imshow(img)
-    ax[0].set_title("Original Image")
+        fig, ax = plt.subplots(
+            1,
+            4,
+            figsize=(16,4)
+        )
 
-    # Stego
-    ax[1].imshow(stego_img)
-    ax[1].set_title("Stego Image")
+        ax[0].imshow(img)
+        ax[0].set_title("Original")
 
-    # Vegetation Map
-    ax[2].imshow(
-        exg_original,
-        cmap="Greens"
-    )
-    ax[2].set_title(
-        "Vegetation Map"
-    )
+        ax[1].imshow(stego_img)
+        ax[1].set_title("Stego")
 
-    # Heatmap
-    ax[3].imshow(
-        diff_map,
-        cmap="hot"
-    )
-    ax[3].set_title(
-        "Vegetation Change Heatmap"
-    )
+        ax[2].imshow(
+            exg_original,
+            cmap="Greens"
+        )
+        ax[2].set_title("Vegetation Map")
 
-    for a in ax:
-        a.axis("off")
+        ax[3].imshow(
+            diff_map,
+            cmap="hot"
+        )
+        ax[3].set_title("Change Heatmap")
 
-    st.pyplot(fig)
+        for a in ax:
+            a.axis("off")
 
-    # ===============================
-    # DOWNLOAD BUTTON
-    # ===============================
+        st.pyplot(fig)
 
-    stego_pil = Image.fromarray(stego_img)
+        # ===============================
+        # DOWNLOAD BUTTON
+        # ===============================
 
-    buffer = io.BytesIO()
+        stego_pil = Image.fromarray(stego_img)
 
-    stego_pil.save(
-        buffer,
-        format="PNG"
-    )
+        buffer = io.BytesIO()
 
-    st.download_button(
-        label="Download Stego Image",
-        data=buffer.getvalue(),
-        file_name="GreenSteg_output.png",
-        mime="image/png"
-    )
+        stego_pil.save(
+            buffer,
+            format="PNG"
+        )
+
+        st.download_button(
+            label="Download Stego Image",
+            data=buffer.getvalue(),
+            file_name="GreenSteg_output.png",
+            mime="image/png"
+        )
+
+    except Exception as e:
+
+        st.error(str(e))
 
 
 # ===============================
@@ -290,8 +296,14 @@ if uploaded_stego:
 
     stego = np.array(stego)
 
-    recovered_message = extract_text(stego)
+    try:
 
-    st.success("Recovered Message:")
+        recovered_message = extract_text(stego)
 
-    st.code(recovered_message)
+        st.success("Recovered Message:")
+
+        st.code(recovered_message)
+
+    except Exception as e:
+
+        st.error(str(e))
