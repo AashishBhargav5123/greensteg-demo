@@ -1,7 +1,5 @@
-
 import streamlit as st
 import numpy as np
-import cv2
 from PIL import Image
 import matplotlib.pyplot as plt
 import io
@@ -14,6 +12,7 @@ def text_to_bits(text):
     return ''.join(format(ord(c), '08b') for c in text)
 
 def bits_to_text(bits):
+
     chars = []
 
     for i in range(0, len(bits), 8):
@@ -31,9 +30,11 @@ def bits_to_text(bits):
 
 def compute_exg(img):
 
-    R = img[:,:,0].astype(float)
-    G = img[:,:,1].astype(float)
-    B = img[:,:,2].astype(float)
+    img = img.astype(float)
+
+    R = img[:,:,0]
+    G = img[:,:,1]
+    B = img[:,:,2]
 
     return 2*G - R - B
 
@@ -137,7 +138,7 @@ and verify vegetation preservation.
 )
 
 # =========================
-# EMBEDDING SECTION
+# EMBEDDING
 # =========================
 
 st.header("🔐 Embed Message")
@@ -196,10 +197,10 @@ if uploaded_image and message:
     )
 
     ax[0].imshow(img)
-    ax[0].set_title("Original Image")
+    ax[0].set_title("Original")
 
     ax[1].imshow(stego_img)
-    ax[1].set_title("Stego Image")
+    ax[1].set_title("Stego")
 
     ax[2].imshow(
         exg_original,
@@ -214,7 +215,7 @@ if uploaded_image and message:
         cmap="hot"
     )
     ax[3].set_title(
-        "Vegetation Change Heatmap"
+        "Vegetation Change"
     )
 
     for a in ax:
@@ -243,7 +244,7 @@ if uploaded_image and message:
     )
 
 # =========================
-# EXTRACTION SECTION
+# EXTRACTION
 # =========================
 
 st.markdown("---")
