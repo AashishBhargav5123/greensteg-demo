@@ -4,9 +4,9 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import io
 
-# =========================
-# TEXT CONVERSION
-# =========================
+# ===============================
+# TEXT ↔ BINARY CONVERSION
+# ===============================
 
 def text_to_bits(text):
     return ''.join(format(ord(c), '08b') for c in text)
@@ -24,9 +24,10 @@ def bits_to_text(bits):
 
     return ''.join(chars)
 
-# =========================
+
+# ===============================
 # VEGETATION INDEX (ExG)
-# =========================
+# ===============================
 
 def compute_exg(img):
 
@@ -38,9 +39,10 @@ def compute_exg(img):
 
     return 2*G - R - B
 
-# =========================
-# TRUE VEGETATION VIOLATION
-# =========================
+
+# ===============================
+# VEGETATION VIOLATION
+# ===============================
 
 def vegetation_violation(exg1, exg2, tol=5):
 
@@ -55,9 +57,10 @@ def vegetation_violation(exg1, exg2, tol=5):
 
     return violation_rate, diff
 
-# =========================
+
+# ===============================
 # GREEN MASK
-# =========================
+# ===============================
 
 def green_mask(img):
 
@@ -67,9 +70,10 @@ def green_mask(img):
 
     return (G > R) & (G > B)
 
-# =========================
+
+# ===============================
 # GREENSTEG EMBEDDING
-# =========================
+# ===============================
 
 def embed_text(img, message):
 
@@ -81,65 +85,83 @@ def embed_text(img, message):
 
     mask = green_mask(img)
 
-    flat_img = img.flatten()
-    flat_mask = mask.flatten()
+    h, w, c = img.shape
 
     bit_idx = 0
 
-    for i in range(len(flat_img)):
+    for y in range(h):
+        for x in range(w):
 
-        if flat_mask[i] and bit_idx < len(full_bits):
+            if mask[y, x]:
 
-            flat_img[i] = (
-                flat_img[i] & 254
-            ) | int(full_bits[bit_idx])
+                if bit_idx < len(full_bits):
 
-            bit_idx += 1
+                    # Embed into RED channel
+                    pixel = img[y, x, 0]
 
-    return flat_img.reshape(img.shape)
+                    pixel = (
+                        pixel & 254
+                    ) | int(full_bits[bit_idx])
 
-# =========================
+                    img[y, x, 0] = pixel
+
+                    bit_idx += 1
+
+    return img
+
+
+# ===============================
 # EXTRACTION
-# =========================
+# ===============================
 
 def extract_text(img):
 
-    flat = img.flatten()
+    h, w, c = img.shape
 
-    length_bits = ''.join(
-        str(flat[i] & 1)
-        for i in range(32)
-    )
+    bits = []
+
+    for y in range(h):
+        for x in range(w):
+
+            pixel = img[y, x, 0]
+
+            bits.append(str(pixel & 1))
+
+    bits = ''.join(bits)
+
+    length_bits = bits[:32]
 
     message_length = int(length_bits, 2)
 
-    message_bits = ''.join(
-        str(flat[i] & 1)
-        for i in range(
-            32,
-            32 + message_length
-        )
-    )
+    message_bits = bits[
+        32 : 32 + message_length
+    ]
 
     return bits_to_text(message_bits)
 
-# =========================
-# UI
-# =========================
+
+# ===============================
+# STREAMLIT UI
+# ===============================
+
+st.set_page_config(
+    page_title="GreenSteg Demo",
+    layout="wide"
+)
 
 st.title("🌱 GreenSteg Vegetation-Aware Steganography")
 
 st.markdown(
 """
-Upload an agricultural image,
-embed secret data,
+Upload an agricultural image,  
+embed secret data,  
 and verify vegetation preservation.
 """
 )
 
-# =========================
-# EMBEDDING
-# =========================
+# ===============================
+# EMBEDDING SECTION
+# ===============================
 
 st.header("🔐 Embed Message")
 
@@ -186,9 +208,9 @@ if uploaded_image and message:
         f"Vegetation Violation Rate: {violation_rate:.4f}%"
     )
 
-    # =========================
+    # ===============================
     # VISUALIZATION
-    # =========================
+    # ===============================
 
     fig, ax = plt.subplots(
         1,
@@ -196,12 +218,15 @@ if uploaded_image and message:
         figsize=(16,4)
     )
 
+    # Original
     ax[0].imshow(img)
-    ax[0].set_title("Original")
+    ax[0].set_title("Original Image")
 
+    # Stego
     ax[1].imshow(stego_img)
-    ax[1].set_title("Stego")
+    ax[1].set_title("Stego Image")
 
+    # Vegetation Map
     ax[2].imshow(
         exg_original,
         cmap="Greens"
@@ -210,12 +235,13 @@ if uploaded_image and message:
         "Vegetation Map"
     )
 
+    # Heatmap
     ax[3].imshow(
         diff_map,
         cmap="hot"
     )
     ax[3].set_title(
-        "Vegetation Change"
+        "Vegetation Change Heatmap"
     )
 
     for a in ax:
@@ -223,9 +249,9 @@ if uploaded_image and message:
 
     st.pyplot(fig)
 
-    # =========================
-    # DOWNLOAD
-    # =========================
+    # ===============================
+    # DOWNLOAD BUTTON
+    # ===============================
 
     stego_pil = Image.fromarray(stego_img)
 
@@ -243,9 +269,10 @@ if uploaded_image and message:
         mime="image/png"
     )
 
-# =========================
-# EXTRACTION
-# =========================
+
+# ===============================
+# EXTRACTION SECTION
+# ===============================
 
 st.markdown("---")
 
